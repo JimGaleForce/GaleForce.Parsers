@@ -1,0 +1,27 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netcoreapp3.1</TargetFramework>
+    <PackageProjectUrl>https://github.com/JimGaleForce/GaleForce.Parsers</PackageProjectUrl>
+    <Copyright>(c) Copyright, Gale-Force, LLC.</Copyright>
+    <RepositoryUrl>https://github.com/JimGaleForce/GaleForce.Parsers</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <Title>Includes a PatternParser for parsing html, xml, json, and text based on a specific instruction string.</Title>
+    <PackageLicenseFile>LICENSE</PackageLicenseFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="..\LICENSE">
+      <Pack>True</Pack>
+      <PackagePath>\</PackagePath>
+    </None>
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="AngleSharp" Version="0.17.1" />
+    <PackageReference Include="GaleForce.Core" Version="1.0.9" />
+    <PackageReference Include="HtmlAgilityPack" Version="1.11.46" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.1" />
+  </ItemGroup>
+
+</Project>
