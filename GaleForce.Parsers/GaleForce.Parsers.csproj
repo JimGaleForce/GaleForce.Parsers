@@ -8,6 +8,8 @@
     <RepositoryType>git</RepositoryType>
     <Title>Includes a PatternParser for parsing html, xml, json, and text based on a specific instruction string.</Title>
     <PackageLicenseFile>LICENSE</PackageLicenseFile>
+    <Version>1.0.1.0</Version>
+    <PackageReleaseNotes>added more parsing commands for contains, switch</PackageReleaseNotes>
   </PropertyGroup>
 
   <ItemGroup>

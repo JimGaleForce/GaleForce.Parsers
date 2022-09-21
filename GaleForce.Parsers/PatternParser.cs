@@ -144,86 +144,93 @@ namespace GaleForceCore.Parsers
             var remainingParses = this.Instructions;
 
             var parses = this.Instructions.Split('|');
-            foreach (var parse in parses)
+            foreach (var parsex in parses)
             {
-                if (remainingParses.Length > 0)
-                {
-                    remainingParses = remainingParses.Length < parse.Length + 1
-                        ? string.Empty
-                        : remainingParses.Substring(parse.Length + 1);
-                }
+                var parse = parsex;
 
-                var colon = parse.IndexOf(':');
-                if (colon > -1)
+                var isRepeat = true;
+                while (isRepeat)
                 {
-                    if (this.IsDebug)
+                    isRepeat = false;
+
+                    if (remainingParses.Length > 0)
                     {
-                        this.DebugString.AppendLine();
-                        this.DebugString.AppendLine("Parse:" + parse);
-                        this.DebugString
-                            .AppendLine(
-                                "Before:" +
-                                    (string.IsNullOrWhiteSpace(temp)
-                                        ? string.Empty
-                                        : temp.Substring(0, Math.Min(temp.Length, 60)) + "..."));
+                        remainingParses = remainingParses.Length < parse.Length + 1
+                            ? string.Empty
+                            : remainingParses.Substring(parse.Length + 1);
                     }
 
-                    var cmd = parse.Substring(0, colon);
-                    var part = parse.Substring(colon + 1);
-
-                    var save = cmd.Contains("?");
-                    var nextToken = cmd.Contains("&");
-                    var prefixed = cmd.Contains("+");
-                    var restore = cmd.Contains("^");
-                    var bracketed = cmd.Contains("[");
-                    var executeAnyway = cmd.Contains(">");
-                    var endIftrue = cmd.Contains(".");
-                    var resetLogicalToNoValue = cmd.Contains("<");
-
-                    // todo: 
-                    // N:|XX:/roadclosures/item[contains(community,'{city}')]
-
-                    // G[:{X:item/status},{X:item/location}]
-                    if (string.IsNullOrWhiteSpace(temp) && !executeAnyway)
+                    var colon = parse.IndexOf(':');
+                    if (colon > -1)
                     {
                         if (this.IsDebug)
                         {
-                            this.DebugString.AppendLine(">>empty: skipping " + parse);
+                            this.DebugString.AppendLine();
+                            this.DebugString.AppendLine("Parse:" + parse);
+                            this.DebugString
+                                .AppendLine(
+                                    "Before:" +
+                                        (string.IsNullOrWhiteSpace(temp)
+                                            ? string.Empty
+                                            : temp.Substring(0, Math.Min(temp.Length, 60)) + "..."));
                         }
 
-                        continue;
-                    }
+                        var cmd = parse.Substring(0, colon);
+                        var part = parse.Substring(colon + 1);
 
-                    if (nextToken)
-                    {
-                        results.Add(temp);
-                        temp = string.Empty;
-                    }
+                        var save = cmd.Contains("?");
+                        var nextToken = cmd.Contains("&");
+                        var prefixed = cmd.Contains("+");
+                        var restore = cmd.Contains("^");
+                        var bracketed = cmd.Contains("[");
+                        var executeAnyway = cmd.Contains(">");
+                        var endIftrue = cmd.Contains(".");
+                        var resetLogicalToNoValue = cmd.Contains("<");
 
-                    if (prefixed)
-                    {
-                        prefix += temp;
-                        temp = string.Empty;
-                    }
+                        // todo: 
+                    // N:|XX:/roadclosures/item[contains(community,'{city}')]
 
-                    if (restore)
-                    {
-                        temp = potentialResults.Count > 0 ? potentialResults.Pop() : this.Content;
-                    }
-
-                    if (save)
-                    {
-                        potentialResults.Push(prefix + temp);
-                        prefix = string.Empty;
-                    }
-
-                    var contains = temp?.Contains(part);
-
-                    if (cmd.Contains("$"))
-                    {
-                        if (this.CustomParser != null)
+                        // G[:{X:item/status},{X:item/location}]
+                        if (string.IsNullOrWhiteSpace(temp) && !executeAnyway)
                         {
-                            temp = this.CustomParser
+                            if (this.IsDebug)
+                            {
+                                this.DebugString.AppendLine(">>empty: skipping " + parse);
+                            }
+
+                            continue;
+                        }
+
+                        if (nextToken)
+                        {
+                            results.Add(temp);
+                            temp = string.Empty;
+                        }
+
+                        if (prefixed)
+                        {
+                            prefix += temp;
+                            temp = string.Empty;
+                        }
+
+                        if (restore)
+                        {
+                            temp = potentialResults.Count > 0 ? potentialResults.Pop() : this.Content;
+                        }
+
+                        if (save)
+                        {
+                            potentialResults.Push(prefix + temp);
+                            prefix = string.Empty;
+                        }
+
+                        var contains = temp?.Contains(part);
+
+                        if (cmd.Contains("$"))
+                        {
+                            if (CustomParser != null)
+                            {
+                                temp = CustomParser
                                 .Invoke(
                                     this,
                                     new CustomParserArguments
@@ -233,245 +240,275 @@ namespace GaleForceCore.Parsers
                                         Command = cmd,
                                         Content = this.Content
                                     });
-                        }
-                    }
-                    else if (cmd.Contains("i"))
-                    {
-                        if (!this.CheckDoc(temp))
-                        {
-                            return false;
-                        }
-
-                        this.nodes = doc.SelectNodes(part);
-                        this.IsDictionary = true;
-                    }
-                    else if (cmd.Contains("AQ"))
-                    {
-                        // AngleSharp QuerySelector
-                        var parser = new HtmlParser();
-                        var document = parser.ParseDocument(temp);
-                        temp = document.QuerySelector(part)?.TextContent;
-                    }
-                    else if (cmd.Contains("k"))
-                    {
-                        this.keypart = part;
-                    }
-                    else if (cmd.Contains("v"))
-                    {
-                        this.valuepart = part;
-                    }
-                    else if (cmd.Contains("V")) //validate part so far - if empty, missing data
-                    {
-                        if (string.IsNullOrEmpty(temp))
-                        {
-                            // missing data
-                            if (this.IsDebug)
-                            {
-                                this.DebugString.AppendLine();
-                                this.DebugString.AppendLine("Validated as empty");
-                            }
-
-                            return false;
-                        }
-                    }
-                    else if (cmd.Contains("table") && this.nodes != null)
-                    {
-                        if (part.Contains("name="))
-                        {
-                            this.Tablename = part.Substring(part.IndexOf("name=") + 5);
-                            var j = this.Tablename.IndexOf(";");
-                            if (j > -1)
-                            {
-                                this.Tablename = this.Tablename.Substring(0, j);
                             }
                         }
-
-                        foreach (XmlNode node in this.nodes)
+                        else if (cmd.Contains("i"))
                         {
-                            XmlNode key = null;
-                            XmlNodeList valueset = null;
+                            if (!this.CheckDoc(temp))
+                            {
+                                return false;
+                            }
+
+                            this.nodes = doc.SelectNodes(part);
+                            this.IsDictionary = true;
+                        }
+                        else if (cmd.Contains("AQ"))
+                        {
+                            // AngleSharp QuerySelector
+                            var parser = new HtmlParser();
+                            var document = parser.ParseDocument(temp);
+                            temp = document.QuerySelector(part)?.TextContent;
+                        }
+                        else if (cmd.Contains("k"))
+                        {
+                            this.keypart = part;
+                        }
+                        else if (cmd.Contains("v"))
+                        {
+                            this.valuepart = part;
+                        }
+                        else if (cmd.Contains("V")) //validate part so far - if empty, missing data
+                        {
+                            if (string.IsNullOrEmpty(temp))
+                            {
+                                // missing data
+                                if (this.IsDebug)
+                                {
+                                    this.DebugString.AppendLine();
+                                    this.DebugString.AppendLine("Validated as empty");
+                                }
+
+                                return false;
+                            }
+                        }
+                        else if (cmd.Contains("table") && this.nodes != null)
+                        {
+                            if (part.Contains("name="))
+                            {
+                                this.Tablename = part.Substring(part.IndexOf("name=") + 5);
+                                var j = this.Tablename.IndexOf(";");
+                                if (j > -1)
+                                {
+                                    this.Tablename = this.Tablename.Substring(0, j);
+                                }
+                            }
+
+                            foreach (XmlNode node in this.nodes)
+                            {
+                                XmlNode key = null;
+                                XmlNodeList valueset = null;
+                                try
+                                {
+                                    key = node.SelectSingleNode(this.keypart);
+                                    valueset = node.SelectNodes(this.valuepart);
+                                }
+                                catch (Exception)
+                                {
+                                    // skip if not matching
+                                    continue;
+                                }
+
+                                if (!string.IsNullOrWhiteSpace(key?.InnerText))
+                                {
+                                    if (!string.IsNullOrWhiteSpace(key.InnerText) &&
+                                        !this.Dictionary.ContainsKey(key.InnerText))
+                                    {
+                                        var values = new StringBuilder();
+                                        var count = valueset.Count;
+                                        foreach (XmlNode value in valueset)
+                                        {
+                                            values.Append(value.InnerText);
+                                            if (--count > 0)
+                                            {
+                                                values.Append("~");
+                                            }
+                                        }
+
+                                        this.Dictionary.Add(key.InnerText, values.ToString());
+                                    }
+                                }
+                            }
+
+                            Debug.WriteLine("Table {0} saved count = {1}", this.Tablename, this.Dictionary.Count);
+                        }
+                        else if (cmd.Contains("TEXT"))
+                        {
+                            var len = 0;
+                            while (temp.Contains("<") && temp.Length != len)
+                            {
+                                len = temp.Length;
+                                var word = temp.Between("<", ">");
+                                temp = temp.Replace("<" + word + ">", string.Empty);
+                            }
+                        }
+                        else if (cmd.Contains("R"))
+                        {
+                            temp = cmd.Contains("Rl") ? temp.RightOfLast(part) : temp.RightOf(part, cmd.Contains("RI"));
+                        }
+                        else if (cmd.Contains("T"))
+                        {
+                            temp = temp.Trim();
+                        }
+                        else if (cmd.Contains("L"))
+                        {
+                            temp = temp.LeftOf(part, cmd.Contains("LI"));
+                        }
+                        else if (cmd.Contains("B"))
+                        {
+                            temp = temp.Between(part);
+                        }
+                        else if (cmd.Contains("D"))
+                        {
+                            temp = HttpUtility.HtmlDecode(temp);
+                        }
+                        else if (cmd.Contains("N"))
+                        {
+                            temp = temp.Replace("  ", " ").Replace("  ", " ");
+                        }
+                        else if (cmd.Contains("S"))
+                        {
+                            // terciary switch based on previous logical result
+                            var parts2 = part.Split('~');
+                            var cmdparts2 = new List<string>() { "", "" };
+
+                            var previousTemp = temp;
+
+                            // context switch?
+                            var hasKeys = false;
+                            var index = 0;
+                            foreach (var singlepart in parts2)
+                            {
+                                if (singlepart.Length > 0 && singlepart.StartsWith("@"))
+                                {
+                                    cmdparts2[index] = singlepart.Substring(1);
+                                }
+
+                                var equals = singlepart.IndexOf("=");
+                                if (equals > -1)
+                                {
+                                    hasKeys = true;
+                                    var keyvalue = singlepart.Split('=');
+                                    if (keyvalue[0].Equals(temp) ||
+                                        (keyvalue[0].Equals("()") && string.IsNullOrWhiteSpace(temp)) ||
+                                        keyvalue[0].Equals("*"))
+                                    {
+                                        temp = keyvalue[1];
+                                        break;
+                                    }
+                                }
+
+                                ++index;
+                            }
+
+                            var expectedIndex = this.LogicalResult.HasValue && this.LogicalResult.Value ? 0 : 1;
+
+                            if (!hasKeys)
+                            {
+                                if (parts2.Length > expectedIndex)
+                                {
+                                    temp = parts2[expectedIndex].Equals("*") ? temp : parts2[expectedIndex];
+
+                                    if (endIftrue)
+                                    {
+                                        break;
+                                    }
+                                }
+                            }
+
+                            if (endIftrue)
+                            {
+                                this.LogicalResult = null;
+                            }
+
+                            if (temp == "()")
+                            {
+                                temp = string.Empty;
+                            }
+
+                            if (!string.IsNullOrWhiteSpace(cmdparts2[expectedIndex]))
+                            {
+                                temp = previousTemp;
+                                parse = cmdparts2[expectedIndex];
+                                isRepeat = true;
+                                continue;
+                            }
+                        }
+                        else if (cmd.Contains("C") || cmd.Contains("c"))
+                        {
+                            // contains
+                            var test = false;
+                            if (bracketed)
+                            {
+                                var part2 = part.LeftOf("]");
+                                var parts2 = part2.Split('~');
+                                foreach (var parts2part in parts2)
+                                {
+                                    test = test || temp.Contains(parts2part);
+                                }
+                            }
+                            else
+                            {
+                                test = part.Equals("*") ? !string.IsNullOrWhiteSpace(temp) : temp.Contains(part);
+                            }
+
+                            if (resetLogicalToNoValue)
+                            {
+                                this.LogicalResult = null;
+                            }
+
+                            this.LogicalResult = this.LogicalResult.HasValue ? (this.LogicalResult.Value && test) : test;
+
+                            if (cmd.Contains("c"))
+                            {
+                                this.LogicalResult = !this.LogicalResult;
+                            }
+                        }
+                        else if (cmd.Contains("!"))
+                        {
+                            temp = part;
+                        }
+                        else if (cmd.Contains("J") || cmd.Contains("j"))
+                        {
+                            JToken jParsed;
                             try
                             {
-                                key = node.SelectSingleNode(this.keypart);
-                                valueset = node.SelectNodes(this.valuepart);
+                                jParsed = JToken.Parse(temp);
                             }
                             catch (Exception)
                             {
-                                // skip if not matching
-                                continue;
+                                Debug.WriteLine("EXCEPTION: Failed to JParse: " + temp);
+                                return false;
                             }
 
-                            if (!string.IsNullOrWhiteSpace(key?.InnerText))
+                            if (jParsed != null)
                             {
-                                if (!string.IsNullOrWhiteSpace(key.InnerText) &&
-                                    !this.Dictionary.ContainsKey(key.InnerText))
+                                var jToken = jParsed.SelectToken(part);
+                                if (jToken != null)
                                 {
-                                    var values = new StringBuilder();
-                                    var count = valueset.Count;
-                                    foreach (XmlNode value in valueset)
+                                    if (jToken is JArray)
                                     {
-                                        values.Append(value.InnerText);
-                                        if (--count > 0)
-                                        {
-                                            values.Append("~");
-                                        }
-                                    }
-
-                                    this.Dictionary.Add(key.InnerText, values.ToString());
-                                }
-                            }
-                        }
-
-                        Debug.WriteLine("Table {0} saved count = {1}", this.Tablename, this.Dictionary.Count);
-                    }
-                    else if (cmd.Contains("TEXT"))
-                    {
-                        var len = 0;
-                        while (temp.Contains("<") && temp.Length != len)
-                        {
-                            len = temp.Length;
-                            var word = temp.Between("<", ">");
-                            temp = temp.Replace("<" + word + ">", string.Empty);
-                        }
-                    }
-                    else if (cmd.Contains("R"))
-                    {
-                        temp = cmd.Contains("Rl") ? temp.RightOfLast(part) : temp.RightOf(part, cmd.Contains("RI"));
-                    }
-                    else if (cmd.Contains("T"))
-                    {
-                        temp = temp.Trim();
-                    }
-                    else if (cmd.Contains("L"))
-                    {
-                        temp = temp.LeftOf(part, cmd.Contains("LI"));
-                    }
-                    else if (cmd.Contains("B"))
-                    {
-                        temp = temp.Between(part);
-                    }
-                    else if (cmd.Contains("D"))
-                    {
-                        temp = HttpUtility.HtmlDecode(temp);
-                    }
-                    else if (cmd.Contains("N"))
-                    {
-                        temp = temp.Replace("  ", " ").Replace("  ", " ");
-                    }
-                    else if (cmd.Contains("S"))
-                    {
-                        // terciary switch based on previous logical result
-                        var parts2 = part.Split('~');
-
-                        // context switch?
-                        var hasKeys = false;
-                        foreach (var singlepart in parts2)
-                        {
-                            var equals = singlepart.IndexOf("=");
-                            if (equals > -1)
-                            {
-                                hasKeys = true;
-                                var keyvalue = singlepart.Split('=');
-                                if (keyvalue[0].Equals(temp) ||
-                                    (keyvalue[0].Equals("()") && string.IsNullOrWhiteSpace(temp)) ||
-                                    keyvalue[0].Equals("*"))
-                                {
-                                    temp = keyvalue[1];
-                                    break;
-                                }
-                            }
-                        }
-
-                        if (!hasKeys)
-                        {
-                            var expectedIndex = this.LogicalResult.HasValue && this.LogicalResult.Value ? 0 : 1;
-                            if (parts2.Length > expectedIndex)
-                            {
-                                temp = parts2[expectedIndex].Equals("*") ? temp : parts2[expectedIndex];
-
-                                if (endIftrue)
-                                {
-                                    break;
-                                }
-                            }
-                        }
-
-                        if (endIftrue)
-                        {
-                            this.LogicalResult = null;
-                        }
-
-                        if (temp == "()")
-                        {
-                            temp = string.Empty;
-                        }
-                    }
-                    else if (cmd.Contains("C"))
-                    {
-                        // contains
-                        var test = false;
-                        if (bracketed)
-                        {
-                            var part2 = part.LeftOf("]");
-                            var parts2 = part2.Split('~');
-                            foreach (var parts2part in parts2)
-                            {
-                                test = test || temp.Contains(parts2part);
-                            }
-                        }
-                        else
-                        {
-                            test = part.Equals("*") ? !string.IsNullOrWhiteSpace(temp) : temp.Contains(part);
-                        }
-
-                        if (resetLogicalToNoValue)
-                        {
-                            this.LogicalResult = null;
-                        }
-
-                        this.LogicalResult = this.LogicalResult.HasValue ? (this.LogicalResult.Value && test) : test;
-                    }
-                    else if (cmd.Contains("!"))
-                    {
-                        temp = part;
-                    }
-                    else if (cmd.Contains("J") || cmd.Contains("j"))
-                    {
-                        JToken jParsed;
-                        try
-                        {
-                            jParsed = JToken.Parse(temp);
-                        }
-                        catch (Exception)
-                        {
-                            Debug.WriteLine("EXCEPTION: Failed to JParse: " + temp);
-                            return false;
-                        }
-
-                        if (jParsed != null)
-                        {
-                            var jToken = jParsed.SelectToken(part);
-                            if (jToken != null)
-                            {
-                                if (jToken is JArray)
-                                {
-                                    this.ResultArray = jToken as JArray;
-                                    temp = JsonConvert.SerializeObject(jToken);
-                                }
-                                else
-                                {
-                                    if (cmd.Contains("j"))
-                                    {
-                                        temp = ((JProperty)jToken).Name;
-                                        if (cmd.Contains("J"))
-                                        {
-                                            temp += ":'" + jToken.Value<string>() + "'";
-                                        }
+                                        this.ResultArray = jToken as JArray;
+                                        temp = JsonConvert.SerializeObject(jToken);
                                     }
                                     else
                                     {
-                                        temp = jToken.Value<string>();
+                                        if (cmd.Contains("j"))
+                                        {
+                                            temp = ((JProperty)jToken).Name;
+                                            if (cmd.Contains("J"))
+                                            {
+                                                temp += ":'" + jToken.Value<string>() + "'";
+                                            }
+                                        }
+                                        else
+                                        {
+                                            temp = jToken.Value<string>();
+                                        }
                                     }
+                                }
+                                else
+                                {
+                                    temp = string.Empty;
                                 }
                             }
                             else
@@ -479,164 +516,160 @@ namespace GaleForceCore.Parsers
                                 temp = string.Empty;
                             }
                         }
-                        else
+                        else if (cmd.Contains("X") || cmd.Contains("x") || cmd.Contains("Q") || cmd.Contains("q")) //q=limited jquery translation (#ids and .classes)
                         {
-                            temp = string.Empty;
-                        }
-                    }
-                    else if (cmd.Contains("X") || cmd.Contains("x") || cmd.Contains("Q") || cmd.Contains("q")) //q=limited jquery translation (#ids and .classes)
-                    {
-                        // xpath
-                        try
-                        {
-                            doc = this.LoadDoc(temp);
-                        }
-                        catch (XmlException)
-                        {
-                            doc = this.LoadDoc("<root>" + temp + "</root>");
-                        }
-
-                        if (doc == null)
-                        {
-                            throw new Exception("doc (X:) is null");
-                        }
-
-                        var nsmgr = new XmlNamespaceManager(doc.NameTable);
-
-                        if (cmd.Contains("Q") || cmd.Contains("q"))
-                        {
-                            if (part.StartsWith("."))
+                            // xpath
+                            try
                             {
-                                part = part.Substring(1);
-                                part = $".//*[contains(@class,'{part}')]";
+                                doc = this.LoadDoc(temp);
                             }
-                            else if (part.StartsWith("#"))
+                            catch (XmlException)
                             {
-                                part = part.Substring(1);
-                                part = $".//*[@id='{part}']";
+                                doc = this.LoadDoc("<root>" + temp + "</root>");
                             }
-                        }
 
-                        if (cmd.Contains("XX") || cmd.Contains("QQ"))
-                        {
-                            var xnodes2 = doc.SelectNodes(part);
-                            if (xnodes2.Count > 0)
+                            if (doc == null)
                             {
-                                var result = new StringBuilder();
-                                result.Append("<root>");
-                                foreach (XmlNode xnode2 in xnodes2)
+                                throw new Exception("doc (X:) is null");
+                            }
+
+                            var nsmgr = new XmlNamespaceManager(doc.NameTable);
+
+                            if (cmd.Contains("Q") || cmd.Contains("q"))
+                            {
+                                if (part.StartsWith("."))
                                 {
-                                    // result.Append( "<" + xnode2.Name + ">" );
-                                    result.Append(xnode2.OuterXml);
-
-                                    // result.Append( "</" + xnode2.Name + ">" );
+                                    part = part.Substring(1);
+                                    part = $".//*[contains(@class,'{part}')]";
                                 }
+                                else if (part.StartsWith("#"))
+                                {
+                                    part = part.Substring(1);
+                                    part = $".//*[@id='{part}']";
+                                }
+                            }
 
-                                result.Append("</root>");
-                                temp = result.ToString();
+                            if (cmd.Contains("XX") || cmd.Contains("QQ"))
+                            {
+                                var xnodes2 = doc.SelectNodes(part);
+                                if (xnodes2.Count > 0)
+                                {
+                                    var result = new StringBuilder();
+                                    result.Append("<root>");
+                                    foreach (XmlNode xnode2 in xnodes2)
+                                    {
+                                        // result.Append( "<" + xnode2.Name + ">" );
+                                        result.Append(xnode2.OuterXml);
+
+                                        // result.Append( "</" + xnode2.Name + ">" );
+                                    }
+
+                                    result.Append("</root>");
+                                    temp = result.ToString();
+                                }
+                            }
+                            else
+                            {
+                                var xnodes = doc.SelectSingleNode(part);
+                                temp = cmd.Contains("x") || cmd.Contains("q") ? xnodes?.InnerText : xnodes?.InnerXml;  // was R:call-out-text-danger|R:Safety Burn Ban|R:Status:|L:
                             }
                         }
-                        else
+                        else if (cmd.Contains("E"))
                         {
-                            var xnodes = doc.SelectSingleNode(part);
-                            temp = cmd.Contains("x") || cmd.Contains("q") ? xnodes?.InnerText : xnodes?.InnerXml;  // was R:call-out-text-danger|R:Safety Burn Ban|R:Status:|L:
-                        }
-                    }
-                    else if (cmd.Contains("E"))
-                    {
-                        // regex
-                        var expr = new Regex(part);
-                        var matches = expr.Match(part);
-                        var matchResults = new StringBuilder();
-                        while (matches.Success)
-                        {
-                            contains = true;
-                            matchResults.Append(matches.Value);
-                            matchResults.Append("~");
-                            matches = matches.NextMatch();
-                        }
-
-                        temp = matchResults.ToString();
-                        if (!string.IsNullOrWhiteSpace(temp))
-                        {
-                            temp = temp.Substring(0, temp.Length - 1);
-                        }
-                    }
-                    else if (cmd.Contains("F"))
-                    {
-                        results.Add(prefix + temp);
-                        prefix = string.Empty;
-                        temp = string.Format(part, results.ToArray());
-                        results.Clear();
-                    }
-                    else if (cmd.Contains("G"))
-                    {
-                        // G:X:root/item[{X:status},{X:location}]
-                        if (!part.StartsWith("X:"))
-                        {
-                            continue;
-                        }
-
-                        var fullpart = part + (remainingParses.Length > 0 ? "|" : string.Empty) + remainingParses;
-
-                        fullpart = fullpart.Substring(2);
-
-                        var leftarraychar = '<';
-                        var rightarraychar = '>';
-
-                        // WIP HERE
-                        var extra = fullpart.IndexOf(rightarraychar) == fullpart.Length - 1
-                            ? string.Empty
-                            : "|" + fullpart.Substring(fullpart.IndexOf(rightarraychar) + 1);
-                        var bracks = fullpart.Split(leftarraychar, rightarraychar);
-                        var doc2 = this.LoadDoc(temp);
-                        var docnodes = doc2.SelectNodes(bracks[0]);
-
-                        var subparts = bracks[1].Split(',');
-
-                        var parser2 = new PatternParser();
-                        parser2.CustomParser = this.CustomParser;
-                        var rows = new List<List<string>>();
-                        foreach (XmlNode docnode in docnodes)
-                        {
-                            var cols = new List<string>();
-                            foreach (var subpart in subparts)
+                            // regex
+                            var expr = new Regex(part);
+                            var matches = expr.Match(part);
+                            var matchResults = new StringBuilder();
+                            while (matches.Success)
                             {
-                                parser2.Content =
+                                contains = true;
+                                matchResults.Append(matches.Value);
+                                matchResults.Append("~");
+                                matches = matches.NextMatch();
+                            }
+
+                            temp = matchResults.ToString();
+                            if (!string.IsNullOrWhiteSpace(temp))
+                            {
+                                temp = temp.Substring(0, temp.Length - 1);
+                            }
+                        }
+                        else if (cmd.Contains("F"))
+                        {
+                            results.Add(prefix + temp);
+                            prefix = string.Empty;
+                            temp = string.Format(part, results.ToArray());
+                            results.Clear();
+                        }
+                        else if (cmd.Contains("G"))
+                        {
+                            // G:X:root/item[{X:status},{X:location}]
+                            if (!part.StartsWith("X:"))
+                            {
+                                continue;
+                            }
+
+                            var fullpart = part + (remainingParses.Length > 0 ? "|" : string.Empty) + remainingParses;
+
+                            fullpart = fullpart.Substring(2);
+
+                            var leftarraychar = '<';
+                            var rightarraychar = '>';
+
+                            // WIP HERE
+                            var extra = fullpart.IndexOf(rightarraychar) == fullpart.Length - 1
+                                ? string.Empty
+                                : "|" + fullpart.Substring(fullpart.IndexOf(rightarraychar) + 1);
+                            var bracks = fullpart.Split(leftarraychar, rightarraychar);
+                            var doc2 = this.LoadDoc(temp);
+                            var docnodes = doc2.SelectNodes(bracks[0]);
+
+                            var subparts = bracks[1].Split(',');
+
+                            var parser2 = new PatternParser();
+                            parser2.CustomParser = CustomParser;
+                            var rows = new List<List<string>>();
+                            foreach (XmlNode docnode in docnodes)
+                            {
+                                var cols = new List<string>();
+                                foreach (var subpart in subparts)
+                                {
+                                    parser2.Content =
                                     docnode.OuterXml
-                                    .Replace("<" + docnode.Name + " ", "<r ")
-                                    .Replace("<" + docnode.Name + ">", "<r>")
-                                    .Replace("</" + docnode.Name + ">", "</r>");
-                                parser2.Instructions = subpart.Substring(1, subpart.Length - 2) +
-                                    (extra.Length > 0 ? "|" : string.Empty) +
-                                    extra;
-                                if (parser2.Parse())
-                                {
-                                    cols.Add(parser2.Result);
+                                        .Replace("<" + docnode.Name + " ", "<r ")
+                                        .Replace("<" + docnode.Name + ">", "<r>")
+                                        .Replace("</" + docnode.Name + ">", "</r>");
+                                    parser2.Instructions = subpart.Substring(1, subpart.Length - 2) +
+                                        (extra.Length > 0 ? "|" : string.Empty) +
+                                        extra;
+                                    if (parser2.Parse())
+                                    {
+                                        cols.Add(parser2.Result);
+                                    }
                                 }
+
+                                rows.Add(cols);
                             }
 
-                            rows.Add(cols);
+                            temp = JsonConvert.SerializeObject(rows);
+
+                            break;
                         }
 
-                        temp = JsonConvert.SerializeObject(rows);
+                        if (save && (contains.HasValue && !contains.Value))
+                        {
+                            temp = potentialResults.Pop();
+                        }
 
-                        break;
-                    }
-
-                    if (save && (contains.HasValue && !contains.Value))
-                    {
-                        temp = potentialResults.Pop();
-                    }
-
-                    if (this.IsDebug)
-                    {
-                        this.DebugString
-                            .AppendLine(
-                                "After:" +
-                                    (string.IsNullOrWhiteSpace(temp)
-                                        ? string.Empty
-                                        : temp.Substring(0, Math.Min(temp.Length, 60)) + "..."));
+                        if (this.IsDebug)
+                        {
+                            this.DebugString
+                                .AppendLine(
+                                    "After:" +
+                                        (string.IsNullOrWhiteSpace(temp)
+                                            ? string.Empty
+                                            : temp.Substring(0, Math.Min(temp.Length, 60)) + "..."));
+                        }
                     }
                 }
             }
