@@ -8,8 +8,8 @@
     <RepositoryType>git</RepositoryType>
     <Title>Includes a PatternParser for parsing html, xml, json, and text based on a specific instruction string.</Title>
     <PackageLicenseFile>LICENSE</PackageLicenseFile>
-    <Version>1.0.1.0</Version>
-    <PackageReleaseNotes>added more parsing commands for contains, switch</PackageReleaseNotes>
+    <Version>1.0.2.0</Version>
+    <PackageReleaseNotes>added wildcard matching to contains instruction</PackageReleaseNotes>
   </PropertyGroup>
 
   <ItemGroup>
@@ -21,7 +21,7 @@
 
   <ItemGroup>
     <PackageReference Include="AngleSharp" Version="0.17.1" />
-    <PackageReference Include="GaleForce.Core" Version="1.0.9" />
+    <PackageReference Include="GaleForce.Core" Version="1.0.13" />
     <PackageReference Include="HtmlAgilityPack" Version="1.11.46" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.1" />
   </ItemGroup>

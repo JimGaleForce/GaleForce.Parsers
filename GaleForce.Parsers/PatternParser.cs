@@ -103,6 +103,10 @@ namespace GaleForceCore.Parsers
         /// </summary>
         public StringBuilder DebugString { get; internal set; }
 
+        public List<DebugStep> DebugSteps { get; internal set; } = new List<DebugStep>();
+
+        public int Step { get; internal set; } = 0;
+
         /// <summary>
         /// Occurs when [custom parser].
         /// </summary>
@@ -115,9 +119,9 @@ namespace GaleForceCore.Parsers
         /// <returns>System.String.</returns>
         public string QuickParse(string instructions)
         {
-            this.Instructions = instructions;
-            var result = this.Parse();
-            return result ? this.Result : "ERROR:" + this.DebugString.ToString();
+            Instructions = instructions;
+            var result = Parse();
+            return result ? Result : "ERROR:" + DebugString.ToString();
         }
 
         /// <summary>
@@ -127,23 +131,25 @@ namespace GaleForceCore.Parsers
         /// <exception cref="System.Exception">doc (X:) is null</exception>
         public bool Parse()
         {
-            var temp = this.Content;
+            var temp = Content;
 
             var results = new List<string>();
             var potentialResults = new Stack<string>();
             var prefix = string.Empty;
-            this.DebugString = new StringBuilder();
+            DebugString = new StringBuilder();
             XmlDocument doc = null;
 
-            if (this.IsDebug)
+            if (IsDebug)
             {
-                this.DebugString.AppendLine();
-                this.DebugString.AppendLine("Instructions:" + this.Instructions);
+                DebugString.AppendLine();
+                DebugString.AppendLine("Instructions:" + Instructions);
             }
 
-            var remainingParses = this.Instructions;
+            var remainingParses = Instructions;
+            var breakTop = false;
+            var afterIdentified = false;
 
-            var parses = this.Instructions.Split('|');
+            var parses = Instructions.Split('|');
             foreach (var parsex in parses)
             {
                 var parse = parsex;
@@ -152,6 +158,13 @@ namespace GaleForceCore.Parsers
                 while (isRepeat)
                 {
                     isRepeat = false;
+
+                    var step = new DebugStep { BeforeContent = temp, Step = ++Step, Instruction = parse };
+                    if (IsDebug)
+                    {
+                        DebugSteps.Add(step);
+                        afterIdentified = false;
+                    }
 
                     if (remainingParses.Length > 0)
                     {
@@ -163,11 +176,11 @@ namespace GaleForceCore.Parsers
                     var colon = parse.IndexOf(':');
                     if (colon > -1)
                     {
-                        if (this.IsDebug)
+                        if (IsDebug)
                         {
-                            this.DebugString.AppendLine();
-                            this.DebugString.AppendLine("Parse:" + parse);
-                            this.DebugString
+                            DebugString.AppendLine();
+                            DebugString.AppendLine("Parse:" + parse);
+                            DebugString
                                 .AppendLine(
                                     "Before:" +
                                         (string.IsNullOrWhiteSpace(temp)
@@ -186,16 +199,17 @@ namespace GaleForceCore.Parsers
                         var executeAnyway = cmd.Contains(">");
                         var endIftrue = cmd.Contains(".");
                         var resetLogicalToNoValue = cmd.Contains("<");
+                        var isWildcard = cmd.Contains("*");
 
                         // todo: 
-                    // N:|XX:/roadclosures/item[contains(community,'{city}')]
+                        // N:|XX:/roadclosures/item[contains(community,'{city}')]
 
                         // G[:{X:item/status},{X:item/location}]
                         if (string.IsNullOrWhiteSpace(temp) && !executeAnyway)
                         {
-                            if (this.IsDebug)
+                            if (IsDebug)
                             {
-                                this.DebugString.AppendLine(">>empty: skipping " + parse);
+                                DebugString.AppendLine(">>empty: skipping " + parse);
                             }
 
                             continue;
@@ -215,7 +229,7 @@ namespace GaleForceCore.Parsers
 
                         if (restore)
                         {
-                            temp = potentialResults.Count > 0 ? potentialResults.Pop() : this.Content;
+                            temp = potentialResults.Count > 0 ? potentialResults.Pop() : Content;
                         }
 
                         if (save)
@@ -238,19 +252,19 @@ namespace GaleForceCore.Parsers
                                         Current = temp,
                                         Instruction = part,
                                         Command = cmd,
-                                        Content = this.Content
+                                        Content = Content
                                     });
                             }
                         }
                         else if (cmd.Contains("i"))
                         {
-                            if (!this.CheckDoc(temp))
+                            if (!CheckDoc(temp))
                             {
                                 return false;
                             }
 
-                            this.nodes = doc.SelectNodes(part);
-                            this.IsDictionary = true;
+                            nodes = doc.SelectNodes(part);
+                            IsDictionary = true;
                         }
                         else if (cmd.Contains("AQ"))
                         {
@@ -261,46 +275,46 @@ namespace GaleForceCore.Parsers
                         }
                         else if (cmd.Contains("k"))
                         {
-                            this.keypart = part;
+                            keypart = part;
                         }
                         else if (cmd.Contains("v"))
                         {
-                            this.valuepart = part;
+                            valuepart = part;
                         }
                         else if (cmd.Contains("V")) //validate part so far - if empty, missing data
                         {
                             if (string.IsNullOrEmpty(temp))
                             {
                                 // missing data
-                                if (this.IsDebug)
+                                if (IsDebug)
                                 {
-                                    this.DebugString.AppendLine();
-                                    this.DebugString.AppendLine("Validated as empty");
+                                    DebugString.AppendLine();
+                                    DebugString.AppendLine("Validated as empty");
                                 }
 
                                 return false;
                             }
                         }
-                        else if (cmd.Contains("table") && this.nodes != null)
+                        else if (cmd.Contains("table") && nodes != null)
                         {
                             if (part.Contains("name="))
                             {
-                                this.Tablename = part.Substring(part.IndexOf("name=") + 5);
-                                var j = this.Tablename.IndexOf(";");
+                                Tablename = part.Substring(part.IndexOf("name=") + 5);
+                                var j = Tablename.IndexOf(";");
                                 if (j > -1)
                                 {
-                                    this.Tablename = this.Tablename.Substring(0, j);
+                                    Tablename = Tablename.Substring(0, j);
                                 }
                             }
 
-                            foreach (XmlNode node in this.nodes)
+                            foreach (XmlNode node in nodes)
                             {
                                 XmlNode key = null;
                                 XmlNodeList valueset = null;
                                 try
                                 {
-                                    key = node.SelectSingleNode(this.keypart);
-                                    valueset = node.SelectNodes(this.valuepart);
+                                    key = node.SelectSingleNode(keypart);
+                                    valueset = node.SelectNodes(valuepart);
                                 }
                                 catch (Exception)
                                 {
@@ -311,7 +325,7 @@ namespace GaleForceCore.Parsers
                                 if (!string.IsNullOrWhiteSpace(key?.InnerText))
                                 {
                                     if (!string.IsNullOrWhiteSpace(key.InnerText) &&
-                                        !this.Dictionary.ContainsKey(key.InnerText))
+                                        !Dictionary.ContainsKey(key.InnerText))
                                     {
                                         var values = new StringBuilder();
                                         var count = valueset.Count;
@@ -324,12 +338,12 @@ namespace GaleForceCore.Parsers
                                             }
                                         }
 
-                                        this.Dictionary.Add(key.InnerText, values.ToString());
+                                        Dictionary.Add(key.InnerText, values.ToString());
                                     }
                                 }
                             }
 
-                            Debug.WriteLine("Table {0} saved count = {1}", this.Tablename, this.Dictionary.Count);
+                            Debug.WriteLine("Table {0} saved count = {1}", Tablename, Dictionary.Count);
                         }
                         else if (cmd.Contains("TEXT"))
                         {
@@ -369,7 +383,7 @@ namespace GaleForceCore.Parsers
                         {
                             // terciary switch based on previous logical result
                             var parts2 = part.Split('~');
-                            var cmdparts2 = new List<string>() { "", "" };
+                            var cmdparts2 = new List<string>() { string.Empty, string.Empty };
 
                             var previousTemp = temp;
 
@@ -400,7 +414,7 @@ namespace GaleForceCore.Parsers
                                 ++index;
                             }
 
-                            var expectedIndex = this.LogicalResult.HasValue && this.LogicalResult.Value ? 0 : 1;
+                            var expectedIndex = LogicalResult.HasValue && LogicalResult.Value ? 0 : 1;
 
                             if (!hasKeys)
                             {
@@ -417,7 +431,7 @@ namespace GaleForceCore.Parsers
 
                             if (endIftrue)
                             {
-                                this.LogicalResult = null;
+                                LogicalResult = null;
                             }
 
                             if (temp == "()")
@@ -430,12 +444,14 @@ namespace GaleForceCore.Parsers
                                 temp = previousTemp;
                                 parse = cmdparts2[expectedIndex];
                                 isRepeat = true;
+
+                                afterIdentified = afterIdentified || SetAfter(temp);
+
                                 continue;
                             }
                         }
                         else if (cmd.Contains("C") || cmd.Contains("c"))
                         {
-                            // contains
                             var test = false;
                             if (bracketed)
                             {
@@ -443,24 +459,31 @@ namespace GaleForceCore.Parsers
                                 var parts2 = part2.Split('~');
                                 foreach (var parts2part in parts2)
                                 {
-                                    test = test || temp.Contains(parts2part);
+                                    test = test ||
+                                        (isWildcard
+                                            ? temp.EqualsWildcard(parts2part) || temp.ContainsWildcard(parts2part)
+                                            : temp.Contains(parts2part));
                                 }
                             }
                             else
                             {
-                                test = part.Equals("*") ? !string.IsNullOrWhiteSpace(temp) : temp.Contains(part);
+                                test = part.Equals("*")
+                                    ? !string.IsNullOrWhiteSpace(temp)
+                                    : (isWildcard
+                                        ? temp.EqualsWildcard(part) || temp.ContainsWildcard(part)
+                                        : temp.Contains(part));
                             }
 
                             if (resetLogicalToNoValue)
                             {
-                                this.LogicalResult = null;
+                                LogicalResult = null;
                             }
 
-                            this.LogicalResult = this.LogicalResult.HasValue ? (this.LogicalResult.Value && test) : test;
+                            LogicalResult = LogicalResult.HasValue ? (LogicalResult.Value && test) : test;
 
                             if (cmd.Contains("c"))
                             {
-                                this.LogicalResult = !this.LogicalResult;
+                                LogicalResult = !LogicalResult;
                             }
                         }
                         else if (cmd.Contains("!"))
@@ -487,7 +510,7 @@ namespace GaleForceCore.Parsers
                                 {
                                     if (jToken is JArray)
                                     {
-                                        this.ResultArray = jToken as JArray;
+                                        ResultArray = jToken as JArray;
                                         temp = JsonConvert.SerializeObject(jToken);
                                     }
                                     else
@@ -521,11 +544,11 @@ namespace GaleForceCore.Parsers
                             // xpath
                             try
                             {
-                                doc = this.LoadDoc(temp);
+                                doc = LoadDoc(temp);
                             }
                             catch (XmlException)
                             {
-                                doc = this.LoadDoc("<root>" + temp + "</root>");
+                                doc = LoadDoc("<root>" + temp + "</root>");
                             }
 
                             if (doc == null)
@@ -621,7 +644,7 @@ namespace GaleForceCore.Parsers
                                 ? string.Empty
                                 : "|" + fullpart.Substring(fullpart.IndexOf(rightarraychar) + 1);
                             var bracks = fullpart.Split(leftarraychar, rightarraychar);
-                            var doc2 = this.LoadDoc(temp);
+                            var doc2 = LoadDoc(temp);
                             var docnodes = doc2.SelectNodes(bracks[0]);
 
                             var subparts = bracks[1].Split(',');
@@ -653,6 +676,7 @@ namespace GaleForceCore.Parsers
 
                             temp = JsonConvert.SerializeObject(rows);
 
+                            breakTop = true;
                             break;
                         }
 
@@ -660,17 +684,16 @@ namespace GaleForceCore.Parsers
                         {
                             temp = potentialResults.Pop();
                         }
-
-                        if (this.IsDebug)
-                        {
-                            this.DebugString
-                                .AppendLine(
-                                    "After:" +
-                                        (string.IsNullOrWhiteSpace(temp)
-                                            ? string.Empty
-                                            : temp.Substring(0, Math.Min(temp.Length, 60)) + "..."));
-                        }
                     }
+
+                    afterIdentified = afterIdentified || SetAfter(temp);
+                }
+
+                afterIdentified = afterIdentified || SetAfter(temp);
+
+                if (breakTop)
+                {
+                    break;
                 }
             }
 
@@ -690,7 +713,37 @@ namespace GaleForceCore.Parsers
                 }
             }
 
-            this.Result = builder.Length == 0 ? string.Empty : builder.ToString();
+            Result = builder.Length == 0 ? string.Empty : builder.ToString();
+
+            return true;
+        }
+
+        private bool SetAfter(string temp)
+        {
+            if (IsDebug)
+            {
+                var step = DebugSteps.LastOrDefault();
+                if (step != null)
+                {
+                    if (temp == step.BeforeContent)
+                    {
+                        step.IsIdentical = true;
+                    }
+                    else
+                    {
+                        step.AfterContent = temp;
+                    }
+
+                    step.LogicalResult = LogicalResult;
+
+                    DebugString
+                        .AppendLine(
+                            "After:" +
+                                (string.IsNullOrWhiteSpace(temp)
+                                    ? string.Empty
+                                    : temp.Substring(0, Math.Min(temp.Length, 60)) + "..."));
+                }
+            }
 
             return true;
         }
@@ -727,7 +780,7 @@ namespace GaleForceCore.Parsers
         public string CreateRecipe(string goal)
         {
             var parser = new HtmlParser();
-            var document = parser.ParseDocument(this.Content);
+            var document = parser.ParseDocument(Content);
             var node = document.All
                 .Where(m => m.TextContent.Contains(goal))
                 .OrderBy(m => m.TextContent.Length)
@@ -738,7 +791,7 @@ namespace GaleForceCore.Parsers
 
             if (node != null)
             {
-                var bestId = this.GetAncestor(node, m => m.Id != null);
+                var bestId = GetAncestor(node, m => m.Id != null);
                 if (bestId != null)
                 {
                     q += "#" + bestId.Id;
@@ -759,7 +812,7 @@ namespace GaleForceCore.Parsers
 
                     while (element != null)
                     {
-                        var firstClassList = this.GetAncestor(element, m => m.ClassList != null);
+                        var firstClassList = GetAncestor(element, m => m.ClassList != null);
                         var lessClass = string.Empty;
                         for (int i = 0; i < firstClassList.ClassList.Length; i++)
                         {
@@ -847,15 +900,15 @@ namespace GaleForceCore.Parsers
         /// <returns><c>true</c> if valid, <c>false</c> otherwise.</returns>
         public bool CheckDoc(string xmlOrHtml)
         {
-            if (this.doc != null)
+            if (doc != null)
             {
                 return true;
             }
 
             try
             {
-                this.doc = new XmlDocument();
-                this.doc.LoadXml(xmlOrHtml);
+                doc = new XmlDocument();
+                doc.LoadXml(xmlOrHtml);
             }
             catch (Exception)
             {
@@ -878,7 +931,7 @@ namespace GaleForceCore.Parsers
 
                     stream.Position = 0;
 
-                    this.doc.LoadXml((new StreamReader(stream)).ReadToEnd());
+                    doc.LoadXml((new StreamReader(stream)).ReadToEnd());
                 }
                 catch (Exception)
                 {
@@ -953,5 +1006,26 @@ namespace GaleForceCore.Parsers
 
             return doc;
         }
+    }
+
+    public class DebugStep
+    {
+        public int Step { get; set; }
+
+        public string BeforeContent { get; set; }
+
+        private string afterContext { get; set; }
+
+        public string AfterContent
+        {
+            get { return IsIdentical ? BeforeContent : afterContext; }
+            set { afterContext = value; }
+        }
+
+        public string Instruction { get; set; }
+
+        public bool IsIdentical { get; set; }
+
+        public bool? LogicalResult { get; set; }
     }
 }
