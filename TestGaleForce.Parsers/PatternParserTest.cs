@@ -42,7 +42,7 @@ namespace TestGaleForceCore.Parsers
         {
             var pp = new PatternParser
             {
-                Content = GetHtml1(),
+                Content = this.GetHtml1(),
                 Instructions = "AQ:.lead|T:|C*:*A full message*|S>:~*|C><:*|S>:notfound~found",
                 IsDebug = true
             };
